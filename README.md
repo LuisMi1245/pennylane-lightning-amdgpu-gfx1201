@@ -2,87 +2,96 @@
 
 Unofficial community build of [PennyLane-Lightning AMDGPU](https://github.com/PennyLaneAI/pennylane-lightning) for AMD GPUs based on the `gfx1201` architecture.
 
-This repository provides a reproducible build configuration and relocatable binary wheel for using the `lightning.amdgpu` device with AMD `gfx1201` GPUs on Linux.
-
-The primary target is the AMD Radeon RX 9070 XT.
+This repository provides reproducible build instructions and release wheels for using the `lightning.amdgpu` device with supported AMD `gfx1201` GPUs on Linux. The primary target tested by this project is the AMD Radeon RX 9070 XT.
 
 > **Disclaimer:** This is an independent community project. It is not affiliated with, endorsed by, or officially maintained by PennyLaneAI, AMD, or the Kokkos project.
 
 ## Project goals
 
-- Provide a precompiled AMDGPU wheel for `gfx1201`.
+- Provide a binary CPython wheel targeting AMD `gfx1201` GPUs.
 - Bundle the Kokkos shared libraries required by the backend.
-- Avoid hard-coded paths to the original build machine.
-- Document the complete build and packaging procedure.
-- Maintain a reproducible and documented compatibility matrix.
-- Review dependencies and publish updated builds approximately every six months.
+- Avoid embedding build-machine-specific absolute paths in native binaries.
+- Document a repeatable build and packaging procedure.
+- Publish the exact software and hardware configuration used for each release.
+- Review dependencies and publish updates approximately every six months, subject to validation.
 
-## Current build
+## Current validated configuration
 
-| Component | Version / Configuration |
+The initial build was produced and tested using the following configuration:
+
+| Component | Version / configuration |
 |---|---|
-| PennyLane | 0.45.1 |
+| PennyLane | 0.45.1 (tested Python environment) |
 | PennyLane-Lightning | 0.45.0 |
 | Lightning-AMDGPU | 0.45.0 |
 | Kokkos | 5.1.0 |
-| ROCm / HIP | 7.1.1 |
+| ROCm | 7.1.1 |
+| HIP | 7.1.52802 |
+| HIP compiler | Clang 20.0.0 |
 | Python | CPython 3.14 |
 | Operating system | Fedora Linux 44 |
 | Platform | Linux x86_64 |
 | GPU architecture | AMD `gfx1201` |
-| Tested GPU | Radeon RX 9070 XT |
+| Tested GPU | AMD Radeon RX 9070 XT |
 
-This compatibility matrix describes the environment used to build and validate the current release. Other Linux distributions, ROCm versions, Python versions, and AMD GPU architectures are not considered verified unless explicitly listed in a subsequent release.
+This table records the configuration actually used for the initial build and validation. It does not imply that every Linux distribution, ROCm version, or AMD GPU is compatible. Each later release must include its own `BUILD-INFO.txt` describing the configuration used for that release.
 
-## Current release
+## Releases and wheel compatibility
 
-**Wheel:**
+Download binary wheels from the repository's [GitHub Releases](../../releases) page. Each release should include:
 
-`pennylane_lightning_amdgpu-0.45.0-cp314-cp314-linux_x86_64.whl`
+- The final `.whl` file.
+- `SHA256SUMS.txt`, containing its SHA-256 checksum.
+- `BUILD-INFO.txt`, describing the build and validation environment.
 
-The wheel includes the Lightning AMDGPU native extensions and the Kokkos shared libraries required by this build.
+The initial wheel is named:
 
-The AMD HIP runtime remains a system dependency and must be provided by a compatible ROCm installation.
+```text
+pennylane_lightning_amdgpu-0.45.0-cp314-cp314-linux_x86_64.whl
+```
 
-### Important compatibility requirements
+The wheel tag indicates CPython 3.14 and Linux x86_64. It does **not** encode the GPU architecture or ROCm version. The initial build targets `gfx1201` and requires a compatible AMD ROCm/HIP installation.
+
+### Initial binary requirements
 
 - Linux x86_64.
 - CPython 3.14.
-- AMD ROCm/HIP runtime compatible with `libamdhip64.so.7`.
 - AMD GPU with architecture `gfx1201`.
+- A compatible ROCm installation providing `libamdhip64.so.7`.
 - glibc 2.43 or newer.
 - libstdc++ providing `GLIBCXX_3.4.32` or newer.
 
-The wheel uses the generic `linux_x86_64` platform tag. This tag does not guarantee compatibility with every Linux distribution or AMD GPU.
+Kokkos Core and Kokkos Containers are bundled in the wheel. The AMD HIP runtime, GPU driver, and other system libraries are not bundled and must be supplied by the host system.
+
+The ABI requirements above apply to the initial wheel. They must be checked again for every rebuilt release; do not assume a future build has identical requirements.
 
 ## Installation
 
-### 1. Check the AMD GPU
+The following commands describe the initial release. Replace the wheel filename with the exact asset attached to the release you are installing.
 
-Ensure ROCm is installed and that the GPU is recognized:
+### 1. Check the GPU and ROCm installation
+
+Ensure ROCm is installed and the GPU is visible:
 
 ```bash
 rocminfo
 ```
 
-The GPU agent should report:
+The GPU agent should identify the architecture as `gfx1201`. Also check that the HIP runtime is visible to the dynamic linker:
 
-```text
-Name: gfx1201
-Marketing Name: AMD Radeon RX 9070 XT
+```bash
+ldconfig -p | grep libamdhip64.so.7
 ```
 
 ### 2. Create a virtual environment
 
 ```bash
 python3.14 -m venv ~/venvs/pennylane-gfx1201
-
 source ~/venvs/pennylane-gfx1201/bin/activate
-
 python -m pip install --upgrade pip
 ```
 
-### 3. Install Python dependencies
+### 3. Install the tested Python dependencies
 
 ```bash
 python -m pip install \
@@ -91,35 +100,39 @@ python -m pip install \
     "scipy-openblas32>=0.3.26"
 ```
 
-### 4. Download and install the wheel
+These are the versions used for the initial release. For a later release, follow its release notes and `BUILD-INFO.txt`.
 
-Download the wheel from the Assets section of the corresponding GitHub Release.
+### 4. Install the wheel
 
-Then install it:
+Download the wheel asset from GitHub Releases, change to the directory containing the downloaded file, and run:
 
 ```bash
 python -m pip install --no-deps \
     ./pennylane_lightning_amdgpu-0.45.0-cp314-cp314-linux_x86_64.whl
 ```
 
-### 5. Verify the installation
+`--no-deps` is used because the dependencies are installed explicitly in the previous step.
+
+### 5. Check Python dependencies
 
 ```bash
 python -m pip check
 ```
 
-A successful installation should report:
+Expected output:
 
 ```text
 No broken requirements found.
 ```
 
-### 6. Run a basic quantum circuit
+### 6. Run a basic circuit
 
 ```python
 import pennylane as qml
 
+
 dev = qml.device("lightning.amdgpu", wires=2)
+
 
 @qml.qnode(dev)
 def circuit(theta):
@@ -127,76 +140,77 @@ def circuit(theta):
     qml.CNOT(wires=[0, 1])
     return qml.state()
 
+
 print(circuit(0.5))
 ```
 
-Expected state:
+Expected state, up to normal floating-point formatting:
 
 ```text
 [0.96891242+0.j  0.+0.j  0.+0.j  0.24740396+0.j]
 ```
 
-This is a basic functional smoke test, not a comprehensive performance or correctness benchmark.
+This is a basic functional smoke test. It is not a comprehensive test of every operation, circuit configuration, gradient method, or machine-learning workload.
 
 ## Build from source
 
-The complete reproducible build procedure, including Kokkos compilation, HIP configuration, wheel packaging, runtime library bundling, and binary sanitization, is documented in [`BUILDING.md`](BUILDING.md).
+See [`BUILDING.md`](BUILDING.md) for the full procedure, including:
 
-The current build uses:
+- Pinning source versions.
+- Building Kokkos for `AMD_GFX1201`.
+- Configuring and compiling PennyLane-Lightning AMDGPU.
+- Bundling Kokkos shared libraries in the wheel.
+- Applying relocatable ELF runtime paths.
+- Removing build-machine paths and debug information.
+- Including third-party license notices.
+- Creating release assets and validating the final wheel in a clean virtual environment.
 
-- PennyLane-Lightning `v0.45.0`
-- Kokkos `5.1.0`
-- ROCm/HIP `7.1.1`
-- Kokkos architecture flag `AMD_GFX1201`
+## Validation history
 
-## Validation
-
-The backend has been validated on the target GPU with:
+The initial backend build was exercised on the target `gfx1201` GPU with:
 
 - Basic state-vector circuit execution.
-- Multi-qubit state-vector simulation.
+- Multi-qubit state-vector simulation, including a 24-qubit test.
 - Adjoint differentiation.
 - GPU activity observed during simulation.
 
-These checks establish that the custom backend can execute on the target hardware. They do not imply that every PennyLane operation, circuit configuration, or quantum machine-learning workload has been exhaustively tested.
+These checks establish that the backend executed on the target hardware in the original build environment. They do not establish compatibility with every PennyLane operation or all AMD GPUs. Each release should distinguish tests run on the original build environment from tests run after installing the final wheel into a clean virtual environment.
 
 ## Maintenance policy
 
-This project aims to review and update its build approximately every six months.
+The project aims to review the build approximately every six months. An update is not automatic: every new combination of PennyLane-Lightning, Kokkos, ROCm/HIP, Python, and compiler versions must be built and validated before publication.
 
-Each new release should document:
+For every release, record:
 
 1. PennyLane and PennyLane-Lightning versions.
-2. Kokkos version.
-3. ROCm/HIP version.
-4. Python version and Linux ABI requirements.
-5. GPU architectures actually tested.
-6. Installation and smoke-test results.
-7. Wheel SHA-256 checksum.
+2. Kokkos version and source commit.
+3. ROCm, HIP, and HIP compiler versions.
+4. Python version, Linux platform, glibc and libstdc++ ABI requirements.
+5. GPU architecture and physical GPU models actually tested.
+6. Clean-environment installation and smoke-test results.
+7. SHA-256 checksum of the published wheel.
 
-Dependency upgrades must be validated before publishing a new wheel. A newer upstream release does not automatically imply compatibility with this custom backend.
+Do not claim support for a GPU architecture or software configuration that has not been tested.
 
 ## Known limitations
 
-- The current binary is specifically compiled for AMD `gfx1201`.
-- The wheel targets CPython 3.14 and Linux x86_64.
-- A compatible AMD ROCm/HIP installation is required.
-- Other AMD GPU architectures require a separate build.
-- Older Linux systems may lack the required glibc or libstdc++ symbols.
-- The current release is validated on one hardware and software configuration.
+- The initial wheel is compiled specifically for AMD `gfx1201`.
+- The initial wheel targets CPython 3.14 and Linux x86_64.
+- A compatible system ROCm/HIP runtime is required.
+- The generic `linux_x86_64` wheel tag does not make the binary portable to every Linux distribution.
+- Other AMD GPU architectures require separate compilation and validation.
+- A successful import or installation does not establish that every PennyLane operation is supported by this backend.
 
-## Upstream projects and references
+## Upstream projects
 
 - [PennyLane](https://github.com/PennyLaneAI/pennylane)
 - [PennyLane-Lightning](https://github.com/PennyLaneAI/pennylane-lightning)
 - [Kokkos](https://github.com/kokkos/kokkos)
-- [ROCm documentation](https://rocm.docs.amd.com/)
-- [Lightning documentation](https://docs.pennylane.ai/projects/lightning/)
+- [AMD ROCm documentation](https://rocm.docs.amd.com/)
+- [PennyLane-Lightning documentation](https://docs.pennylane.ai/projects/lightning/)
 
-## License and acknowledgements
+## Licensing and third-party notices
 
-PennyLane-Lightning is distributed under the Apache License 2.0.
+This repository must include its own `LICENSE` for original repository materials and `THIRD_PARTY_NOTICES.md` for redistributed components. Include the license text shipped with the exact Kokkos source version in `licenses/`, and include the corresponding Kokkos license file in the wheel's `.dist-info/licenses/` directory when bundling its shared libraries.
 
-This project bundles Kokkos Core shared libraries, which have their own license terms. See `LICENSE` and `THIRD_PARTY_NOTICES.md` for the applicable notices.
-
-All trademarks and product names belong to their respective owners.
+See [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) for the third-party notices. Do not imply that this independent build is an official PennyLaneAI or AMD binary distribution.
