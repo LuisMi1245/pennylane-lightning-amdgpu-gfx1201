@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Build products
+build/
+dist/
+*.whl
+*.so
+*.o
+*.a
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake-build-*/
+
+# Logs and local files
+*.log
+.DS_Store
+Thumbs.db
